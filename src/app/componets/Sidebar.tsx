@@ -1,15 +1,31 @@
 import React, { useState } from 'react';
 import { Box, Button, Drawer, List, Typography } from '@mui/material';
 import HealthAndSafetyIcon from '@mui/icons-material/HealthAndSafety';
-import { KeyboardDoubleArrowLeft, KeyboardDoubleArrowRight, LocalAtm } from '@mui/icons-material';
+import { KeyboardDoubleArrowLeft, KeyboardDoubleArrowRight, LocalAtm} from '@mui/icons-material';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 
 interface SidebarProps {
   selectedOption: number;
   setSelectedOption: React.Dispatch<React.SetStateAction<number>>;
 }
 
+const sidebarItems = [
+  {
+    "title": "Regulação",
+    "icon": <HealthAndSafetyIcon sx={{ color: 'white' }} />
+  },
+  {
+    "title": "Financeiro",
+    "icon": <LocalAtm sx={{ color: 'white' }} />
+  },
+  {
+    "title": "Contabilidade",
+    "icon": <AccountBalanceWalletIcon sx={{ color: 'white' }} />
+  },
+]
+
 const Sidebar: React.FC<SidebarProps> = ({ selectedOption, setSelectedOption }) => {
-  const [isCollapsed, setIsCollapsed] = useState(false); 
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const toggleSidebar = () => {
     setIsCollapsed(!isCollapsed);
@@ -35,7 +51,7 @@ const Sidebar: React.FC<SidebarProps> = ({ selectedOption, setSelectedOption }) 
           color: "white",
           justifyContent: "center",
           alignSelf: 'center',
-          minHeight:40,
+          minHeight: 40,
           borderRadius: 0
         }}
         startIcon={isCollapsed ? <KeyboardDoubleArrowRight /> : <KeyboardDoubleArrowLeft />}
@@ -66,50 +82,33 @@ const Sidebar: React.FC<SidebarProps> = ({ selectedOption, setSelectedOption }) 
               flexDirection: "column",
             }}
           >
-            <Button
-              onClick={() => setSelectedOption(0)}
-              startIcon={isCollapsed ? <HealthAndSafetyIcon sx={{ color: 'white' }} /> : null}
-              sx={{
-                bgcolor: selectedOption === 0 ? "#1976d2" : "",
-                justifyContent: isCollapsed ? "center" : "flex-start",
-                width: '100%',
-              }}
-            >
-              {!isCollapsed && (
-                <Box display={"flex"}>
-                  <HealthAndSafetyIcon sx={{ color: 'white' }} />
-                  <Typography ml={1} fontSize={18} color="white" textAlign="start">
-                    REGULAÇÃO
-                  </Typography>
-                </Box>
-              )}
-            </Button>
-
-            <Button
-              onClick={() => setSelectedOption(1)}
-              startIcon={isCollapsed ? <LocalAtm sx={{ color: 'white' }} /> : null}
-              sx={{
-                bgcolor: selectedOption === 1 ? "#1976d2" : "",
-                justifyContent: isCollapsed ? "center" : "flex-start",
-                width: '100%',
-              }}
-            >
-              {!isCollapsed && (
-                <Box display={"flex"}>
-                  <LocalAtm sx={{ color: 'white' }} />
-                  <Typography ml={1} fontSize={18} color="white" textAlign="start">
-                    Financeiro
-                  </Typography>
-                </Box>
-
-              )}
-            </Button>
+            {sidebarItems.map((item, index) => (
+              <Button
+                key={index}
+                onClick={() => setSelectedOption(index)} 
+                startIcon={isCollapsed ? item.icon : null}
+                sx={{
+                  bgcolor: selectedOption === index ? "#1976d2" : "", 
+                  justifyContent: isCollapsed ? "center" : "flex-start",
+                  width: '100%',
+                }}
+              >
+                {!isCollapsed && (
+                  <Box display={"flex"}>
+                    {item.icon}
+                    <Typography ml={1} fontSize={18} color="white" textAlign="start">
+                      {item.title}
+                    </Typography>
+                  </Box>
+                )}
+              </Button>
+            ))}
           </List>
         </Box>
 
         {!isCollapsed && <Box display={"flex"} justifyContent={"center"} color={'white'} alignItems={"center"} flexDirection={"column"} pt={1} borderTop={"1px solid white"}>
-          <Typography>desenvolvido por</Typography>
-          <Typography fontSize={18} textTransform={"uppercase"}>Inovação & Melhoria</Typography>
+          <Typography>Desenvolvido por:</Typography>
+          <Typography fontSize={16} textTransform={"uppercase"}>Inovação & Melhoria</Typography>
         </Box>}
 
 

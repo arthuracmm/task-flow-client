@@ -5,6 +5,7 @@ import { RegulationPage } from './modules/regulation';
 import Sidebar from './componets/Sidebar';
 import { FinancialPage } from './modules/financial';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AccountingPage } from './modules/accounting';
 
 export default function Home() {
   const [selectedOption, setSelectedOption] = React.useState<number>(0);
@@ -12,9 +13,11 @@ export default function Home() {
   const renderContent = () => {
     switch (selectedOption) {
       case 0:
-        return <RegulationPage />;
+        return <AccountingPage />;
       case 1:
         return <FinancialPage />;
+      case 2:
+        return <AccountingPage />;
       default:
         return <Typography variant="h6">Selecione uma opção</Typography>;
     }
