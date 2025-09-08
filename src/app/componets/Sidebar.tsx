@@ -19,7 +19,7 @@ const sidebarItems = [
     "icon": <LocalAtm sx={{ color: 'white' }} />
   },
   {
-    "title": "Contabilidade",
+    "title": "Baixas",
     "icon": <AccountBalanceWalletIcon sx={{ color: 'white' }} />
   },
 ]

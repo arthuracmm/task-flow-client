@@ -13,7 +13,7 @@ export default function Home() {
   const renderContent = () => {
     switch (selectedOption) {
       case 0:
-        return <AccountingPage />;
+        return <RegulationPage />;
       case 1:
         return <FinancialPage />;
       case 2:
