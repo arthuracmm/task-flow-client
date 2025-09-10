@@ -1,22 +1,31 @@
-import React, { useState } from 'react';
-import { Box, InputLabel, TextField } from '@mui/material';
+import React from 'react';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { ptBR } from 'date-fns/locale';
 
-const DateSelector = ({ selectedDate, onChange }: { selectedDate: string | null, onChange: (date: string) => void }) => {
-  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    onChange(event.target.value);
-  };
+interface DateSelectorProps {
+  selectedDate: Date | null;
+  onChange: (date: Date | null) => void;
+}
 
+const DateSelector: React.FC<DateSelectorProps> = ({ selectedDate, onChange }) => {
   return (
-    <Box>
-      <TextField
-        value={selectedDate || ''}
-        onChange={handleChange}
-        label="DD/MM/YYYY"
+    <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ptBR}>
+      <DatePicker
+        label="Data Referência"
+        value={selectedDate}
+        onChange={onChange}
+        format="dd/MM/yyyy"
         sx={{ width: '100%', ml: 1 }}
-        size="small"
-        variant="standard"
+        slotProps={{
+          textField: {
+            size: 'small',
+            variant: 'standard',
+          },
+        }}
       />
-    </Box>
+    </LocalizationProvider>
   );
 };
 

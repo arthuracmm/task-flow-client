@@ -8,6 +8,7 @@ import UploadCSVSimplified from '../components/UploadCSVSimplified';
 import { History, KeyboardReturn } from '@mui/icons-material';
 import HistoryComp from '../components/HistoryComp';
 import apiClient from '@/connection/apiClient';
+import { parse, formatISO } from 'date-fns';
 
 const AccountingPage: React.FC = () => {
   const [selectedBank, setSelectedBank] = useState<number | null>(null);
@@ -34,13 +35,6 @@ const AccountingPage: React.FC = () => {
     setSelectedAgency(bankObj.agency);
     setSelectedAccount(bankObj.account);
   }
-
-  const formatDateForDB = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day} 00:00:00.000`;
-  };
 
 
   const sendBatchAndItems = async () => {
@@ -76,7 +70,12 @@ const AccountingPage: React.FC = () => {
         0
       );
 
-      const formattedReferenceDate = referenceDate ? formatDateForDB(new Date(referenceDate)) : null;
+      const formatDateForDB = (date: Date | null) => {
+        if (!date) return null;
+        return date.toISOString().slice(0, 19).replace('T', ' ');
+      };
+
+      const formattedReferenceDate = formatDateForDB(referenceDate);
 
       const batchPayload = {
         filename: uploadedFileName,
@@ -102,12 +101,12 @@ const AccountingPage: React.FC = () => {
 
       for (const item of batchItemsData) {
         const authorizationExists = await checkAuthorizationExists(String(item.authorizationNumber));
-
         const updatedItem = { ...item, batchId };
 
         if (authorizationExists) {
-          updatedItem.status = "valid";
+          updatedItem.status = "L";
           validBatchItems.push(updatedItem);
+
         } else {
           updatedItem.status = "invalid";
           invalidBatchItems.push(updatedItem);
@@ -125,6 +124,30 @@ const AccountingPage: React.FC = () => {
         const allBatchItems = [...validBatchItems, ...invalidBatchItems];
         await apiClient.post("/batch-items", allBatchItems);
         alert('Batch e itens enviados com sucesso!');
+        const tasyPayload = {
+          NR_SEQUENCIA: sequenceNumber,
+          CD_ESTABELECIMENTO: 1,
+          DT_ATUALIZACAO: new Date(),
+          NM_USUARIO: 'GGR',
+          DT_ATUALIZACAO_NREC: new Date(),
+          NM_USUARIO_NREC: 'GGR',
+          DT_REFERENCIA: referenceDate,
+          NR_SEQ_BANDEIRA: null,
+          DT_BAIXA: null,
+          NR_SEQ_TRANS_FIN_DESP: null,
+          NR_SEQ_BANCO_DESP: null,
+          VL_DESPESA: null,
+          DS_OBSERVACAO: observation,
+          NR_SEQ_TRANS_FIN_BAIXA: selectedTransaction,
+          NR_SEQ_CONTA_BANCO: selectedAccount,
+          NR_SEQ_TRANS_FIN_DESPESA: null,
+          NR_SEQ_FORMA_PAGTO: null,
+          IE_CANCELA_LOTE_CARTAO: 'N',
+          TX_ANTECIPACAO: null,
+          NR_SEQ_TRANS_FIN_TRIB: null
+        };
+
+        await apiClient.post('/batches/insert-tasy', tasyPayload);
       } else {
         alert('Nenhum item válido ou inválido foi encontrado para adicionar ao batch.');
       }
@@ -186,10 +209,7 @@ const AccountingPage: React.FC = () => {
           <Box display={'flex'} gap={2} height={'100%'}>
 
             <Box display={'flex'} flexDirection={'column'} gap={3} width={'50%'} bgcolor={'#fff'} padding={2} boxShadow={2}>
-              <DateSelector
-                selectedDate={referenceDate}
-                onChange={(date: string) => setReferenceDate(date)}
-              />
+              <DateSelector selectedDate={referenceDate} onChange={setReferenceDate} />
               <TransationSelector selectedService={selectedTransaction} onChange={handleTransactionChange} />
               <BankSelector
                 selectedBank={selectedBank}
@@ -213,7 +233,7 @@ const AccountingPage: React.FC = () => {
             sx={{ bgcolor: '#1976d2', color: '#fff', '&:hover': { bgcolor: '#105daaff' } }}
             onClick={sendBatchAndItems}
           >
-            ENVIAR
+            Criar Lote
           </Button>
         </Box>
       )}

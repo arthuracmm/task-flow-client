@@ -96,9 +96,20 @@ const HistoryComp: React.FC<HistoryCompProps> = () => {
         const fetchInvalidItems = async (batchId: number) => {
             try {
                 const res = await apiClient.get(`/batches/${batchId}/invalid-items`);
-                setInvalidBatchItems(res.data);
-            } catch (error) {
-                console.error("Erro ao buscar itens inválidos:", error);
+
+                if (res.data && Array.isArray(res.data)) {
+                    setInvalidBatchItems(res.data);
+                } else {
+                    setInvalidBatchItems([]);
+                }
+            } catch (error : any) {
+                if (error.response && error.response.status === 404) {
+                    console.log('Nenhum item inválido encontrado para este lote.');
+                    setInvalidBatchItems([]);
+                } else {
+                    console.error('Erro ao buscar itens inválidos:', error);
+                    setInvalidBatchItems([]);
+                }
             }
         };
 
@@ -108,7 +119,6 @@ const HistoryComp: React.FC<HistoryCompProps> = () => {
             setInvalidBatchItems([]);
         }
     }, [expandedBatchId]);
-
 
     const handleToggle = (batchId: number) => {
         setExpandedBatchId((prev) => (prev === batchId ? null : batchId));
@@ -127,7 +137,7 @@ const HistoryComp: React.FC<HistoryCompProps> = () => {
                     .slice(0, 8)
                     .map((batch) => {
                         const itemsForBatch = batchItems.filter((item) => item.batchId === batch.id);
-                        const validItems = itemsForBatch.filter((item) => item.status === 'valid');
+                        const validItems = itemsForBatch.filter((item) => item.status === 'A' || item.status === 'L');
                         const invalidItems = itemsForBatch.filter((item) => item.status === 'invalid');
 
                         const isExpanded = expandedBatchId === batch.id;
