@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Box, Button, InputLabel, Typography } from '@mui/material';
+import React, { useEffect, useState } from 'react';
+import { Box, Button } from '@mui/material';
 import TransationSelector from '../components/TransationSelector';
 import BankSelector from '../components/BankSelector';
 import DateSelector from '../components/DateSelector';
@@ -10,15 +10,16 @@ import HistoryComp from '../components/HistoryComp';
 import apiClient from '@/connection/apiClient';
 
 const AccountingPage: React.FC = () => {
-  const [selectedTransaction, setSelectedTransaction] = useState<number | null>(null);
   const [selectedBank, setSelectedBank] = useState<number | null>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<number | null>(null);
+  const [referenceDate, setReferenceDate] = useState<any | null>();
   const [selectedAgency, setSelectedAgency] = useState<number | null>(null);
   const [selectedAccount, setSelectedAccount] = useState<number | null>(null);
   const [observation, setObservation] = useState<string | null>(null);
   const [batchItemsData, setBatchItemsData] = useState<any[]>([]);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
   const [viewHistory, setViewHistory] = useState<boolean | null>(false)
-
+  const [invalidBatchItems, setInvalidBatchItems] = useState<any[]>([]);
 
   const handleObservationChange = (obs: string) => {
     setObservation(obs);
@@ -34,6 +35,13 @@ const AccountingPage: React.FC = () => {
     setSelectedAccount(bankObj.account);
   }
 
+  const formatDateForDB = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day} 00:00:00.000`;
+  };
+
 
   const sendBatchAndItems = async () => {
     try {
@@ -42,7 +50,15 @@ const AccountingPage: React.FC = () => {
         return;
       }
 
-      // Monta os totais somando os valores em batchItemsData
+      const sequenceResponse = await apiClient.get("/nextValueSequence");
+
+      if (!sequenceResponse || !sequenceResponse.data || !sequenceResponse.data.sequenceNumber) {
+        alert('Erro ao obter o número da sequência');
+        return;
+      }
+
+      const sequenceNumber = sequenceResponse.data.sequenceNumber;
+
       const totalGrossInstallmentAmount = batchItemsData.reduce(
         (acc: number, item: any) => acc + Number(item.grossInstallmentAmount || 0),
         0
@@ -60,9 +76,13 @@ const AccountingPage: React.FC = () => {
         0
       );
 
+      const formattedReferenceDate = referenceDate ? formatDateForDB(new Date(referenceDate)) : null;
+
       const batchPayload = {
         filename: uploadedFileName,
+        sequenceNumber: sequenceNumber,
         status: 'complete',
+        referenceDate: formattedReferenceDate,
         bankId: selectedBank,
         agencyID: selectedAgency,
         accountId: selectedAccount,
@@ -72,32 +92,63 @@ const AccountingPage: React.FC = () => {
         totalNetInstallmentAmount,
         sumTotalSalesPlan,
       };
-      const batchResponse = await apiClient.post("/batches", batchPayload);
 
+      const batchResponse = await apiClient.post("/batches", batchPayload);
       const batchCreated = await batchResponse.data;
       const batchId = batchCreated.id;
 
-      const batchItemsPayload = batchItemsData.map((item: any) => ({
-        ...item,
-        batchId,
-      }));
+      const validBatchItems = [];
+      const invalidBatchItems = [];
 
-      await apiClient.post("/batch-items", batchItemsPayload);
+      for (const item of batchItemsData) {
+        const authorizationExists = await checkAuthorizationExists(String(item.authorizationNumber));
 
-      alert('Batch e itens enviados com sucesso!');
+        const updatedItem = { ...item, batchId };
 
-      // Reseta estados se quiser
+        if (authorizationExists) {
+          updatedItem.status = "valid";
+          validBatchItems.push(updatedItem);
+        } else {
+          updatedItem.status = "invalid";
+          invalidBatchItems.push(updatedItem);
+          setInvalidBatchItems((prev) => [...prev, updatedItem]);
+
+          const updatedBatchItemsData = batchItemsData.map((batchItem) =>
+            batchItem.id === item.id ? updatedItem : batchItem
+          );
+          setBatchItemsData(updatedBatchItemsData);
+        }
+      }
+
+
+      if (validBatchItems.length > 0 || invalidBatchItems.length > 0) {
+        const allBatchItems = [...validBatchItems, ...invalidBatchItems];
+        await apiClient.post("/batch-items", allBatchItems);
+        alert('Batch e itens enviados com sucesso!');
+      } else {
+        alert('Nenhum item válido ou inválido foi encontrado para adicionar ao batch.');
+      }
+
       setBatchItemsData([]);
       setUploadedFileName(null);
       setSelectedBank(null);
       setSelectedTransaction(null);
-      setViewHistory(true)
+      setViewHistory(true);
     } catch (error: any) {
       alert(error.message || 'Erro desconhecido');
     }
   };
 
+  const checkAuthorizationExists = async (authorizationNumber: string | number) => {
+    try {
+      const response = await apiClient.get(`/authorizationexists/${authorizationNumber}`);
 
+      return response.data.exists;
+    } catch (error) {
+      console.error('Erro ao verificar autorização:', error);
+      return false;
+    }
+  };
 
   return (
     <Box display={'flex'} flexDirection={'column'} height={'100%'}>
@@ -135,6 +186,10 @@ const AccountingPage: React.FC = () => {
           <Box display={'flex'} gap={2} height={'100%'}>
 
             <Box display={'flex'} flexDirection={'column'} gap={3} width={'50%'} bgcolor={'#fff'} padding={2} boxShadow={2}>
+              <DateSelector
+                selectedDate={referenceDate}
+                onChange={(date: string) => setReferenceDate(date)}
+              />
               <TransationSelector selectedService={selectedTransaction} onChange={handleTransactionChange} />
               <BankSelector
                 selectedBank={selectedBank}
@@ -165,7 +220,7 @@ const AccountingPage: React.FC = () => {
 
 
       {viewHistory && (
-        <HistoryComp />
+        <HistoryComp invalidBatchItems={invalidBatchItems} />
       )}
     </Box>
   );

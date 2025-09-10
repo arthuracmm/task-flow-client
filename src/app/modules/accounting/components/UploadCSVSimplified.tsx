@@ -9,6 +9,8 @@ type UploadProps = {
 };
 
 const columnMapping: { [key: string]: string } = {
+  "Parcela": "installment",
+  "Total de parcela": "totalInstallment",
   "Número da autorização": "authorizationNumber",
   "Valor parcela bruto": "grossInstallmentAmount",
   "Desconto parcela": "installmentDiscount",

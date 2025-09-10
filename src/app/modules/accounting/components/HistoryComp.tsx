@@ -2,13 +2,13 @@ import React, { useEffect, useState } from "react";
 import {
     Box,
     Typography,
-    Divider,
-    CircularProgress,
     List,
     ListItemButton,
     Collapse,
+    Button,
 } from "@mui/material";
-import { Span } from "next/dist/trace";
+import * as XLSX from "xlsx";
+import apiClient from "@/connection/apiClient";
 
 interface Batch {
     id: number;
@@ -29,6 +29,9 @@ interface Batch {
 interface BatchItem {
     id: number;
     batchId: number;
+    status: string;
+    installment: number;
+    totalInstallment: number;
     authorizationNumber: number;
     grossInstallmentAmount: string;
     installmentDiscount: string;
@@ -38,34 +41,74 @@ interface BatchItem {
     updatedAt: string;
 }
 
-const HistoryComp: React.FC = () => {
+interface HistoryCompProps {
+    invalidBatchItems: BatchItem[];
+}
+
+const HistoryComp: React.FC<HistoryCompProps> = () => {
     const [batches, setBatches] = useState<Batch[]>([]);
     const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
-    const [loading, setLoading] = useState(true);
     const [expandedBatchId, setExpandedBatchId] = useState<number | null>(null);
+    const [invalidBatchItems, setInvalidBatchItems] = useState<BatchItem[]>([]);
+
+    const exportToXlsx = () => {
+        if (invalidBatchItems.length === 0) {
+            alert("Não há itens inválidos para exportar.");
+            return;
+        }
+
+        const data = invalidBatchItems.map((item) => ({
+            "Parcela": item.installment,
+            "Total de parcelao": item.totalInstallment,
+            "Número da autorização": item.authorizationNumber,
+            "Valor parcela bruto": item.grossInstallmentAmount,
+            "Desconto parcela": item.installmentDiscount,
+            "Valor parcela liquido": item.netInstallmentAmount,
+            "Total plano de venda": item.totalSalesPlan,
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Itens Inválidos");
+        XLSX.writeFile(wb, "itens_invalidos.xlsx");
+    };
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const batchesRes = await fetch("http://localhost:3000/batches");
-                const batchesData: Batch[] = await batchesRes.json();
+                const batchesRes = await apiClient.get("/batches");
+                const batchesData: Batch[] = batchesRes.data;
 
-                const itemsRes = await fetch("http://localhost:3000/batch-items");
-                const itemsData: BatchItem[] = await itemsRes.json();
+                const itemsRes = await apiClient.get("/batch-items");
+                const itemsData: BatchItem[] = await itemsRes.data;
 
                 setBatches(batchesData);
                 setBatchItems(itemsData);
             } catch (error) {
                 console.error("Erro ao buscar dados:", error);
-            } finally {
-                setLoading(false);
             }
         };
 
         fetchData();
     }, []);
 
-    if (loading) return <CircularProgress />;
+    useEffect(() => {
+        const fetchInvalidItems = async (batchId: number) => {
+            try {
+                const res = await apiClient.get(`/batches/${batchId}/invalid-items`);
+                setInvalidBatchItems(res.data);
+            } catch (error) {
+                console.error("Erro ao buscar itens inválidos:", error);
+            }
+        };
+
+        if (expandedBatchId !== null) {
+            fetchInvalidItems(expandedBatchId);
+        } else {
+            setInvalidBatchItems([]);
+        }
+    }, [expandedBatchId]);
+
 
     const handleToggle = (batchId: number) => {
         setExpandedBatchId((prev) => (prev === batchId ? null : batchId));
@@ -83,9 +126,9 @@ const HistoryComp: React.FC = () => {
                     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
                     .slice(0, 8)
                     .map((batch) => {
-                        const itemsForBatch = batchItems.filter(
-                            (item) => item.batchId === batch.id
-                        );
+                        const itemsForBatch = batchItems.filter((item) => item.batchId === batch.id);
+                        const validItems = itemsForBatch.filter((item) => item.status === 'valid');
+                        const invalidItems = itemsForBatch.filter((item) => item.status === 'invalid');
 
                         const isExpanded = expandedBatchId === batch.id;
 
@@ -100,8 +143,13 @@ const HistoryComp: React.FC = () => {
                                             Arquivo: {batch.filename}
                                         </Typography>
                                         <Typography variant="body2" color="text.secondary">
-                                            <strong>Itens:</strong> {itemsForBatch.length} | <strong>Total Vendas:</strong> R$ {batch.sumTotalSalesPlan.toFixed(2)}
+                                            <strong>Itens:</strong> {validItems.length} | <strong>Total Vendas:</strong> R$ {batch.sumTotalSalesPlan.toFixed(2)}
                                         </Typography>
+                                        {invalidItems.length > 0 && (
+                                            <Typography variant="body2" color="red">
+                                                <strong>Itens com erro: </strong> {invalidItems.length}
+                                            </Typography>
+                                        )}
                                     </Box>
                                     <Box>
                                         {batch.status === "pending" ? (
@@ -120,63 +168,59 @@ const HistoryComp: React.FC = () => {
                                 <Collapse in={isExpanded} timeout="auto" unmountOnExit>
                                     <Box sx={{ mx: 4, borderLeft: "2px solid #1976d2", px: 2, py: 1, bgcolor: '#fff' }}>
 
-                                        <Typography variant="body2">
-                                            <strong>Banco: </strong> {batch.bankId} |  <strong>Agência:</strong> {batch.agencyID} |  <strong>Conta:</strong>{" "}
-                                            {batch.accountId}
-                                        </Typography>
-                                        <Typography>
-                                            <strong>Transação Financeira Baixa:</strong> {batch.lowFinancialTransaction}
-                                        </Typography>
-                                        <Typography>
-                                            <strong>Total Bruto Parcelas:</strong> R$ {batch.totalGrossInstallmentAmount.toFixed(2)}
-                                        </Typography>
-                                        <Typography>
-                                            <strong>Desconto Total:</strong> R$ {batch.totalInstallmentDiscount.toFixed(2)}
-                                        </Typography>
-                                        <Typography>
-                                            <strong>Total Líquido:</strong> R$ {batch.totalNetInstallmentAmount.toFixed(2)}
-                                        </Typography>
-                                        <Typography>
-                                            <strong>Plano Total de Vendas</strong>: R$ {batch.sumTotalSalesPlan.toFixed(2)}
-                                        </Typography>
+                                        <Box>
+                                            <Typography variant="body2">
+                                                <strong>Banco: </strong> {batch.bankId} |  <strong>Agência:</strong> {batch.agencyID} |  <strong>Conta:</strong>{" "}
+                                                {batch.accountId}
+                                            </Typography>
+                                            <Typography>
+                                                <strong>Transação Financeira Baixa:</strong> {batch.lowFinancialTransaction}
+                                            </Typography>
+                                            <Typography>
+                                                <strong>Total Bruto Parcelas:</strong> R$ {batch.totalGrossInstallmentAmount.toFixed(2)}
+                                            </Typography>
+                                            <Typography>
+                                                <strong>Desconto Total:</strong> R$ {batch.totalInstallmentDiscount.toFixed(2)}
+                                            </Typography>
+                                            <Typography>
+                                                <strong>Total Líquido:</strong> R$ {batch.totalNetInstallmentAmount.toFixed(2)}
+                                            </Typography>
+                                            <Typography>
+                                                <strong>Plano Total de Vendas</strong>: R$ {batch.sumTotalSalesPlan.toFixed(2)}
+                                            </Typography>
+                                        </Box>
 
-                                        <Divider sx={{ my: 2 }} />
-
-                                        <Typography variant="h6" gutterBottom>
-                                            <strong>Itens do Lote:</strong>
-                                        </Typography>
-
-                                        {itemsForBatch.length === 0 && (
-                                            <Typography variant="body2">Nenhum item encontrado.</Typography>
-                                        )}
-
-                                        {itemsForBatch.map((item) => (
-                                            <Box
-                                                key={item.id}
-                                                sx={{
-                                                    mb: 1,
-                                                    p: 1,
-                                                    border: "1px solid #ccc",
-                                                    borderRadius: "4px",
-                                                }}
-                                            >
-                                                <Typography>
-                                                    <strong>Autorização:</strong> {item.authorizationNumber}
+                                        <Box>
+                                            {invalidBatchItems.length > 0 ? (
+                                                <Box sx={{ mt: 4 }}>
+                                                    <Typography variant="h5" color="error" gutterBottom>
+                                                        Itens com Autorização Inválida:
+                                                    </Typography>
+                                                    {invalidBatchItems.map((item, index) => (
+                                                        <Box key={index} sx={{ p: 2, mb: 2, bgcolor: "#f8d7da", borderRadius: "4px" }}>
+                                                            <Typography>
+                                                                <strong>Autorização:</strong> {item.authorizationNumber}
+                                                            </Typography>
+                                                            <Typography variant="body2" color="error">
+                                                                Esta autorização não foi encontrada no banco de dados.
+                                                            </Typography>
+                                                        </Box>
+                                                    ))}
+                                                    <Button
+                                                        variant="contained"
+                                                        color="secondary"
+                                                        onClick={exportToXlsx}
+                                                        sx={{ mt: 2 }}
+                                                    >
+                                                        Exportar para Excel
+                                                    </Button>
+                                                </Box>
+                                            ) : (
+                                                <Typography variant="h6" color="text.secondary">
+                                                    Todos os itens do lote foram enviados.
                                                 </Typography>
-                                                <Typography>
-                                                    <strong>Bruto Parcela:</strong> R$ {parseFloat(item.grossInstallmentAmount).toFixed(2)}
-                                                </Typography>
-                                                <Typography>
-                                                    <strong>Desconto:</strong> R$ {parseFloat(item.installmentDiscount).toFixed(2)}
-                                                </Typography>
-                                                <Typography>
-                                                    <strong>Líquido:</strong> R$ {parseFloat(item.netInstallmentAmount).toFixed(2)}
-                                                </Typography>
-                                                <Typography>
-                                                    <strong>Total Plano de Venda:</strong> R$ {parseFloat(item.totalSalesPlan).toFixed(2)}
-                                                </Typography>
-                                            </Box>
-                                        ))}
+                                            )}
+                                        </Box>
                                     </Box>
                                 </Collapse>
                             </Box>
