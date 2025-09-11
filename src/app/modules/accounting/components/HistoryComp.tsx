@@ -6,6 +6,7 @@ import {
     ListItemButton,
     Collapse,
     Button,
+    CircularProgress,
 } from "@mui/material";
 import * as XLSX from "xlsx";
 import apiClient from "@/connection/apiClient";
@@ -50,6 +51,7 @@ const HistoryComp: React.FC<HistoryCompProps> = () => {
     const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
     const [expandedBatchId, setExpandedBatchId] = useState<number | null>(null);
     const [invalidBatchItems, setInvalidBatchItems] = useState<BatchItem[]>([]);
+    const [loading, setLoading] = useState(false);
 
     const exportToXlsx = () => {
         if (invalidBatchItems.length === 0) {
@@ -102,7 +104,7 @@ const HistoryComp: React.FC<HistoryCompProps> = () => {
                 } else {
                     setInvalidBatchItems([]);
                 }
-            } catch (error : any) {
+            } catch (error: any) {
                 if (error.response && error.response.status === 404) {
                     console.log('Nenhum item inválido encontrado para este lote.');
                     setInvalidBatchItems([]);
@@ -122,6 +124,30 @@ const HistoryComp: React.FC<HistoryCompProps> = () => {
 
     const handleToggle = (batchId: number) => {
         setExpandedBatchId((prev) => (prev === batchId ? null : batchId));
+    };
+
+    const handleBatchSettlement = async (items: BatchItem[]) => {
+        setLoading(true);
+        try {
+            for (const item of items) {
+                apiClient.put(`/batch-items/update-situation/${item.authorizationNumber}/${item.batchId}`)
+                    .then(() => console.log(`Item ${item.id} atualizado com sucesso.`))
+                    .catch(err => console.error(`Erro no item ${item.id}`, err));
+            }
+            // Atualiza o estado após disparar todas (não aguarda)
+            setBatchItems(prev =>
+                prev.map(bi =>
+                    items.find(i => i.id === bi.id)
+                        ? { ...bi, status: 'L' }
+                        : bi
+                )
+            );
+        } catch (error) {
+            console.error("Erro ao realizar baixa:", error);
+            alert("Ocorreu um erro ao processar a baixa.");
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -177,31 +203,52 @@ const HistoryComp: React.FC<HistoryCompProps> = () => {
 
                                 <Collapse in={isExpanded} timeout="auto" unmountOnExit>
                                     <Box sx={{ mx: 4, borderLeft: "2px solid #1976d2", px: 2, py: 1, bgcolor: '#fff' }}>
+                                        <Box sx={{ display: "flex", justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <Box>
+                                                <Typography variant="body2">
+                                                    <strong>Banco: </strong> {batch.bankId} |  <strong>Agência:</strong> {batch.agencyID} |  <strong>Conta:</strong>{" "}
+                                                    {batch.accountId}
+                                                </Typography>
+                                                <Typography>
+                                                    <strong>Transação Financeira Baixa:</strong> {batch.lowFinancialTransaction}
+                                                </Typography>
+                                                <Typography>
+                                                    <strong>Total Bruto Parcelas:</strong> R$ {batch.totalGrossInstallmentAmount.toFixed(2)}
+                                                </Typography>
+                                                <Typography>
+                                                    <strong>Desconto Total:</strong> R$ {batch.totalInstallmentDiscount.toFixed(2)}
+                                                </Typography>
+                                                <Typography>
+                                                    <strong>Total Líquido:</strong> R$ {batch.totalNetInstallmentAmount.toFixed(2)}
+                                                </Typography>
+                                                <Typography>
+                                                    <strong>Plano Total de Vendas</strong>: R$ {batch.sumTotalSalesPlan.toFixed(2)}
+                                                </Typography>
+                                            </Box>
+                                            {validItems.every(item => item.status === 'A') ? (
+                                                <Button
+                                                    variant="contained"
+                                                    color="primary"
+                                                    onClick={() => handleBatchSettlement(validItems)}
+                                                    sx={{ mt: 2 }}
+                                                >
+                                                    {loading ? <CircularProgress size={24} color="inherit" /> : `Realizar Baixa de ${validItems.length} ${validItems.length === 1 ? 'item' : 'itens'}`}
+                                                </Button>
+                                            ) : (
+                                                <Button
+                                                    disabled
+                                                    variant="outlined"
+                                                    color="inherit"
+                                                    sx={{ mt: 2 }}
+                                                >
+                                                    Todos os itens já foram liquidados
+                                                </Button>
+                                            )}
 
-                                        <Box>
-                                            <Typography variant="body2">
-                                                <strong>Banco: </strong> {batch.bankId} |  <strong>Agência:</strong> {batch.agencyID} |  <strong>Conta:</strong>{" "}
-                                                {batch.accountId}
-                                            </Typography>
-                                            <Typography>
-                                                <strong>Transação Financeira Baixa:</strong> {batch.lowFinancialTransaction}
-                                            </Typography>
-                                            <Typography>
-                                                <strong>Total Bruto Parcelas:</strong> R$ {batch.totalGrossInstallmentAmount.toFixed(2)}
-                                            </Typography>
-                                            <Typography>
-                                                <strong>Desconto Total:</strong> R$ {batch.totalInstallmentDiscount.toFixed(2)}
-                                            </Typography>
-                                            <Typography>
-                                                <strong>Total Líquido:</strong> R$ {batch.totalNetInstallmentAmount.toFixed(2)}
-                                            </Typography>
-                                            <Typography>
-                                                <strong>Plano Total de Vendas</strong>: R$ {batch.sumTotalSalesPlan.toFixed(2)}
-                                            </Typography>
                                         </Box>
 
                                         <Box>
-                                            {invalidBatchItems.length > 0 ? (
+                                            {invalidBatchItems.length > 0 && (
                                                 <Box sx={{ mt: 4 }}>
                                                     <Typography variant="h5" color="error" gutterBottom>
                                                         Itens com Autorização Inválida:
@@ -225,10 +272,6 @@ const HistoryComp: React.FC<HistoryCompProps> = () => {
                                                         Exportar para Excel
                                                     </Button>
                                                 </Box>
-                                            ) : (
-                                                <Typography variant="h6" color="text.secondary">
-                                                    Todos os itens do lote foram enviados.
-                                                </Typography>
                                             )}
                                         </Box>
                                     </Box>

@@ -8,7 +8,6 @@ import UploadCSVSimplified from '../components/UploadCSVSimplified';
 import { History, KeyboardReturn } from '@mui/icons-material';
 import HistoryComp from '../components/HistoryComp';
 import apiClient from '@/connection/apiClient';
-import { parse, formatISO } from 'date-fns';
 
 const AccountingPage: React.FC = () => {
   const [selectedBank, setSelectedBank] = useState<number | null>(null);
@@ -104,7 +103,7 @@ const AccountingPage: React.FC = () => {
         const updatedItem = { ...item, batchId };
 
         if (authorizationExists) {
-          updatedItem.status = "L";
+          updatedItem.status = "A";
           validBatchItems.push(updatedItem);
 
         } else {
@@ -123,7 +122,6 @@ const AccountingPage: React.FC = () => {
       if (validBatchItems.length > 0 || invalidBatchItems.length > 0) {
         const allBatchItems = [...validBatchItems, ...invalidBatchItems];
         await apiClient.post("/batch-items", allBatchItems);
-        alert('Batch e itens enviados com sucesso!');
         const tasyPayload = {
           NR_SEQUENCIA: sequenceNumber,
           CD_ESTABELECIMENTO: 1,

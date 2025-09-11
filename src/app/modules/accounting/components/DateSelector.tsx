@@ -14,7 +14,7 @@ const DateSelector: React.FC<DateSelectorProps> = ({ selectedDate, onChange }) =
     <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ptBR}>
       <DatePicker
         label="Data Referência"
-        value={selectedDate}
+        value={selectedDate ?? null}
         onChange={onChange}
         format="dd/MM/yyyy"
         sx={{ width: '100%', ml: 1 }}
